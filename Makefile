@@ -1,9 +1,9 @@
-run: Td3
-	./Td3
+run: Main
+	./Main
 
-Td3: td3.c
-	gcc td3.c -Wall -o Td3
+Main: main.c
+	gcc main.c -Wall -o Main
 
 clean:
-	rm -f Td3
+	rm -f Main
 	ls -l

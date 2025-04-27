@@ -159,24 +159,14 @@ void recopie(proba *x, proba *y) {
 }
 
 void iterer(proba *x, proba *y, proba *z) {
-    printf("affichage opération: \n");
     proba *aX = multFloatProba(alpha, x);
     multVecMat(aX, P, y);
-    printf("aX * P : ");
-    affichevec(y);
-    printf("\n");
 
     proba gauche = invAlpha / (float) C;
     proba droite = (alpha / (float) C) * multVectPVectI(x, f);
 
-    printf("gauchee: %f, droite %f \n   ", gauche, droite);
-
     initvec(w, gauche + droite);
-    printf("vecteur (gauche + droite)e:\n");
-    affichevec(w);
     addVect(w, y);
-    printf("PI(n+1) :\n");
-    affichevec(y);
 }
 
 int main(int argc, char **argv) {
@@ -222,7 +212,6 @@ int main(int argc, char **argv) {
         recopie(x, y);
     }
 
-    affichevec(x);
     free(f);
     free(x);
     free(y);

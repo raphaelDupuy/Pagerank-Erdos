@@ -27,9 +27,7 @@ void initvec(proba *z, float val) {
 }
 
 void initvecStoc(proba *z, float val) {
-    printf("Initialisation vecteur stochastique\n");
-    printf("%d\n", C);
-    indice i; for (i = 0; i<C; i++) { z[i] = val/(float) C; printf("%d\n", i);}
+    initvec(z, (double) C);
 }
 
 void calculeF(int *f, struct elem *P) {
@@ -90,13 +88,9 @@ struct elem* lectureMatrice(char *nom_fic) {
 proba* diffVect(proba *x, proba *y) {
     indice k;
     proba *z = malloc(L * sizeof(float));
-    printf("affichage de X dans la diff: \n");
-    for (indice i = 0; i < C; i++) { printf("%f ", x[i]); }
-    printf("\n");
+
     for (k = 0; k < L; k++) {
-        printf("%f - %f = ", x[k], y[k]);
         z[k] = x[k] - y[k];
-        printf("%f\n", z[k]);
     }
     return z;
 }
@@ -177,13 +171,20 @@ proba* puissances(char nom[], proba *x) {
     P = lectureMatrice(nom);
     if (!x) {
         x = malloc(L * sizeof(proba));
-        initvecStoc(x, 1);  // x0 = (1/N)e
+        initvec(x, 1/(double) C);  // x0 = (1/N)e
     } else {  // adapter en fonction du nombre de nouveaux elements
-        z = calloc(L, sizeof(proba));
-        for (indice i = 0; i < (sizeof(x)/sizeof(proba)); i++) { z[i] = x[i];}
+        
+        z = malloc(L * sizeof(proba));
+
+        for (indice i = 0; i < C; i++) {
+            if (x[i]) {
+                z[i] = x[i];
+            } else {
+                z[i] = 0.0;
+            }
+        }
         printf("Vecteur fourni: \n");
         x = z;
-        affichevec(x);
     }
     affichevec(x);
 
@@ -205,8 +206,6 @@ proba* puissances(char nom[], proba *x) {
     // x : PI(n)
     // y : PI(n+1)
     while (delta > epsilon) {
-        printf("%f\n", delta);
-        printf("%f\n", epsilon);
         cnt ++;
         metZero(y);
         metZero(w);
@@ -230,10 +229,10 @@ int main(int argc, char **argv) {
     x = puissances("matriceCreuse.txt", 0);
 
     printf("\nitération 2\n");
-    puissances("matriceCreuseV2.txt", x);
+    x = puissances("matriceCreuseV2.txt", x);
 
     printf("\nitération 3\n");
-    puissances("matriceCreuseV3.txt", x);
+    x = puissances("matriceCreuseV3.txt", x);
 
     free(x);
     free(P);

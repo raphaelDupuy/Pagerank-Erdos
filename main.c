@@ -28,7 +28,6 @@ void initvec(proba *z, float val) {
 
 void initvecStoc(proba *z, float val) {
     indice i; for (i = 0; i<C; i++) { z[i] = val/(float) C;}
-    printf("Vecteur 1/N initialisé\n");
 }
 
 void calculeF(int *f, struct elem *P) {
@@ -158,7 +157,7 @@ void recopie(proba *x, proba *y) {
     }
 }
 
-void iterer(proba *x, proba *y, proba *z) {
+void iterer(proba *x, proba *y, proba *w) {
     proba *aX = multFloatProba(alpha, x);
     multVecMat(aX, P, y);
 
@@ -169,39 +168,19 @@ void iterer(proba *x, proba *y, proba *z) {
     addVect(w, y);
 }
 
-int main(int argc, char **argv) {
+void puissances(struct elem *P, proba *x) {
     
-    char nom[] = "matriceCreuse.txt";
-    P = lectureMatrice(nom);
-
-    printf("Algo des puissances sur :\n");
-    
-    affichemat(P);
-
-    f = malloc(C * sizeof(int));
-    z = calloc(L, sizeof(proba));
-    w = malloc(L * sizeof(proba));
-    x = malloc(L * sizeof(proba));
-    y = malloc(L * sizeof(proba));
-
-    if (x == NULL || y == NULL || z == NULL) {
-        printf("Memory allocation failed\n");
-        exit(1);
-    }
-
-    printf("Initialisation:\n");
-    initvecStoc(x, 1); // x0 = (1/N)e
-    calculeF(f, P);
-    affichevecInt(f);
-
     float delta = 1.0;
     float epsilon = 10e-6;
-    affichevec(x);
-
     int cnt = 0;
-
-    // x : PI(n), y : PI(n+1)
-    while (epsilon < delta) {
+    f = malloc(C * sizeof(int));
+    w = malloc(L * sizeof(proba));
+    y = malloc(L * sizeof(proba));
+   
+    calculeF(f, P);
+    // x : PI(n)
+    // y : PI(n+1)
+    while (delta > epsilon) {
         cnt ++;
         metZero(y);
         metZero(w);
@@ -213,9 +192,27 @@ int main(int argc, char **argv) {
     }
 
     free(f);
-    free(x);
     free(y);
-    free(z);
+}
+
+int main(int argc, char **argv) {
+    
+    char nom[] = "matriceCreuse.txt";
+    P = lectureMatrice(nom);
+    x = malloc(L * sizeof(proba));
+
+    if (x == NULL) {
+        printf("Memory allocation failed\n");
+        exit(1);
+    }
+
+    initvecStoc(x, 1); // x0 = (1/N)e
+
+    affichevec(x);
+
+    puissances(P, x);
+
+    free(x);
     free(P);
     return 0;
 }

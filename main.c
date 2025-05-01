@@ -6,7 +6,7 @@
 typedef int indice;
 typedef float proba;
 
-    int M; // Nb elements non nuls
+int M; // Nb elements non nuls
 int C; // Nb colonnes
 proba alpha = 0.85; // Proba du surfeur aléatoire
 proba invAlpha = 1 - 0.85;
@@ -79,17 +79,18 @@ struct elem* lectureMatrice(char *nom_fic) {
     if (P == NULL) { exit(10); };
 
     indice courant = 0;
+    printf("Lecture matrice\n");
     for (int k = 0; k < C; k++) {
         fscanf(F, "%d", &(i));
         fscanf(F,"%d",  &(nb)); 
-        printf("%d\n", i);
-        printf("nombre attendu : %d\n", nb);
+        //printf("%d\n", i);
+        //printf("nombre attendu : %d\n", nb);
         for (int z = 0; z < nb; z++) {
             struct elem e;
 
             fscanf(F, "%d", &(j));
             fscanf(F, "%le", &(v));
-            printf("elem: %d, %f\n", j, v);
+            //printf("elem: %d, %f\n", j, v);
             e.i = i - 1;
             e.j = j - 1;
             e.val = v;
@@ -98,7 +99,7 @@ struct elem* lectureMatrice(char *nom_fic) {
             if (courant > M) {
                 exit(202);
             }
-            printf("\n");
+            //printf("\n");
         }
     }
     printf("Nombre d'elements attendu: %d, nombre réel: %d\n", M, courant);
@@ -177,8 +178,9 @@ void recopie(proba *x, proba *y) {
     }
 }
 
-void iterer(proba *x, proba *y, proba *w) {
+void iterer(proba *x, proba *y, proba *w, struct elem *P) {
     proba *aX = multFloatProba(alpha, x);
+
     multVecMat(aX, P, y);
 
     proba gauche = invAlpha / (float) C;
@@ -188,8 +190,7 @@ void iterer(proba *x, proba *y, proba *w) {
     addVect(w, y);
 }
 
-proba* puissances(char nom[], proba *x) {
-    P = lectureMatrice(nom);
+proba* puissances(struct elem *P, proba *x) {
     if (!x) {
 
         x = malloc(C * sizeof(proba));
@@ -209,7 +210,7 @@ proba* puissances(char nom[], proba *x) {
         printf("Vecteur fourni: \n");
         x = z;
     }
-    affichevec(x);
+    //affichevec(x);
 
     float delta = 1.0;
     float epsilon = 10e-6;
@@ -232,12 +233,10 @@ proba* puissances(char nom[], proba *x) {
         cnt ++;
         metZero(y);
         metZero(w);
+        iterer(x, y, w, P);
 
-        iterer(x, y, w);
-
-        printf("pi %d :\n", cnt);
-        affichevec(y);
-
+        //printf("pi %d :\n", cnt);
+        //affichevec(y);
         delta = normeVect(x, y);
         recopie(x, y);
     }
@@ -249,32 +248,48 @@ proba* puissances(char nom[], proba *x) {
 
 int main(int argc, char *argv[]) {
 
-    //FILE *gnuplot = popen("gnuplot -persistent", "w");
-    //if (gnuplot) {
-    //    
-    //    fprintf(gnuplot, "set title 'Temps de convergence en fonction de alpha'\n");
-    //    fprintf(gnuplot, "set xlabel 'alpha'\n");
-    //    fprintf(gnuplot, "set ylabel 'Temps (microsecondes)'\n");
-    //    fprintf(gnuplot, "plot '-' with linespoints title 'PageRank'\n");
-//
-    //    double pas = 10.;
-    //    for (int i = 0; i < pas; i++) {
-    //        alpha = 0 + (i * (1 / pas));
-    //        invAlpha = 1 - alpha;
-    //        long moyenne_temps = 0;
-//
-    //        double moyenne = 100.;
-    //        for (int index = 0; index < moyenne; index++) {
-    //            gettimeofday(&t1, NULL);
-    //            puissances("Matrices/StanfordBerkeley.txt", 0);
-    //            gettimeofday(&t2, NULL);
-    //            moyenne_temps += t2.tv_usec - t1.tv_usec;
-    //        }
-    //        if (moyenne_temps > 0) {
-    //            fprintf(gnuplot, "%f %f\n", alpha, moyenne_temps / moyenne);
-    //        }
-    //    }
-    //}
+    FILE *gnuplot = popen("gnuplot", "w");
+    if (gnuplot) {
+
+        fprintf(gnuplot, "reset\n");    
+        fprintf(gnuplot, "set terminal pngcairo size 1000,700 font 'Helvetica,12'\n");
+        fprintf(gnuplot, "set output 'plot.png'\n");
+
+        fprintf(gnuplot, "set lmargin 12\n");
+        fprintf(gnuplot, "set rmargin 4\n");
+        fprintf(gnuplot, "set bmargin 5\n");
+        fprintf(gnuplot, "set tmargin 3\n");
+
+        fprintf(gnuplot, "set xlabel 'alpha'\n");
+        fprintf(gnuplot, "set ylabel 'Temps (secondes)'\n");
+        fprintf(gnuplot, "set title 'Temps de convergence en fonction de alpha'\n");
+        fprintf(gnuplot, "set grid\n");
+
+        fprintf(gnuplot, "plot '-' with linespoints title 'Convergence'\n");
+        
+        int cnt = 0;
+        double pas = 100.;
+        char nom[] = "Matrices/StanfordBerkeley.txt";
+        struct elem *P = lectureMatrice(nom);
+        for (int i = 0; i < pas - 1; i++) {
+            alpha = 0 + (i * (1 / pas));
+            invAlpha = 1 - alpha;
+            long long moyenne_temps = 0;            
+            long moyenne = 1.;
+            for (int index = 0; index < moyenne; index++) {
+                cnt ++;
+                printf("Tour %d\n", cnt);
+                gettimeofday(&t1, NULL);
+                puissances(P, 0);
+                gettimeofday(&t2, NULL);
+                moyenne_temps += (t2.tv_sec - t1.tv_sec) * 1000000L + (t2.tv_usec - t1.tv_usec);
+            }
+            fprintf(gnuplot, "%f %f\n", alpha, (moyenne_temps / moyenne) / 1e6);
+            printf("%f, %f\n", alpha, (moyenne_temps/moyenne) / 1e6);     
+        }
+    }
+    fprintf(gnuplot, "e\n");
+    fprintf(gnuplot, "unset output\n");
 
 //    printf("\nitération 2\n");
 //    x = puissances("matriceCreuseV2.txt", x);
@@ -282,7 +297,11 @@ int main(int argc, char *argv[]) {
 //    printf("\nitération 3\n");
 //    x = puissances("matriceCreuseV3.txt", x);
 
-    puissances("Matrices/StanfordBerkeley.txt", 0);
+    // gettimeofday(&t1, NULL);
+    // puissances("Matrices/StanfordBerkeley.txt", 0);
+    // gettimeofday(&t2, NULL);
+    // long temps_micro = (t2.tv_sec - t1.tv_sec) * 1000000L + (t2.tv_usec - t1.tv_usec);
+    // printf("Converge en %ld micro sec\n", temps_micro);
     free(x);
     free(P);
     return 0;

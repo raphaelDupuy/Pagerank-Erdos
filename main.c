@@ -6,9 +6,6 @@
 typedef int indice;
 typedef float proba;
 
-proba alpha = 0.85; // Proba du surfeur aléatoire
-proba invAlpha = 1 - 0.85;
-
 struct elem {
     indice i, j; // Les indexes
     proba val;   // La valeur
@@ -60,8 +57,8 @@ void affichevec(struct vecteur *Vec) {
     printf("\n");
 }
 
-void affichemat(struct matrice Mat) {
-    indice k; for (k = 0; k < Mat.M; k++) {{printf("%d %d %f\n", Mat.P[k].i, Mat.P[k].j, Mat.P[k].val);}
+void affichemat(struct matrice *Mat) {
+    indice k; for (k = 0; k < Mat->M; k++) {{printf("%d %d %f\n", Mat->P[k].i, Mat->P[k].j, Mat->P[k].val);}
     }
 }
 
@@ -88,10 +85,9 @@ struct matrice *lectureMatrice(char *nom_fic) {
         fscanf(F, "%d", &(i));
         fscanf(F,"%d",  &(nb)); 
         for (int z = 0; z < nb; z++) {
-            struct elem e;
-
             fscanf(F, "%d", &(j));
             fscanf(F, "%le", &(v));
+            struct elem e;
             e.i = i - 1;
             e.j = j - 1;
             e.val = v;
@@ -191,28 +187,77 @@ void recopie(struct vecteur *X, struct vecteur *Y) {
     }
 }
 
-// struct elem *genereErdos(indice lignes, proba p) {
-//     struct elem *P = malloc(1);
-//     for () {
-// 
-//     }
-// }
+struct matrice *genereErdosStochastique(indice n, proba p) {
 
-void iterer(struct vecteur *X, struct vecteur *Y, struct vecteur *W, struct matrice *Mat) {
+    struct elem *tmp = malloc(n * n * sizeof(struct elem));
+    if (!tmp) exit(500);
+
+    int k = 0;
+    int *degree_sortie = calloc(n, sizeof(int));
+    if (!degree_sortie) exit(501);
+
+    for (indice i = 0; i < n; i++) {
+        for (indice j = 0; j < n; j++) {
+            if (i != j && ((double)rand() / RAND_MAX) < p) {
+                tmp[k].i = i;
+                tmp[k].j = j;
+                tmp[k].val = 1.0; // temporaire
+                degree_sortie[i]++;
+                k++;
+            }
+        }
+    }
+
+    for (indice i = 0; i < n; i++) {
+        if (degree_sortie[i] == 0) {
+            // ligne vide -> ligne uniforme
+            for (indice j = 0; j < n; j++) {
+                tmp[k].i = i;
+                tmp[k].j = j;
+                tmp[k].val = 1.0 / n;
+                k++;
+            }
+        } else {
+            // normalise lignes non nulles
+            for (int m = 0; m < k; m++) {
+                if (tmp[m].i == i) {
+                    tmp[m].val = 1.0 / degree_sortie[i];
+                }
+            }
+        }
+    }
+
+    free(degree_sortie);
+
+    struct matrice *Mat = malloc(sizeof(struct matrice));
+    Mat->P = malloc(k * sizeof(struct elem));
+    if (!Mat->P) exit(502);
+    for (int m = 0; m < k; m++) {
+        Mat->P[m] = tmp[m];
+    }
+    free(tmp);
+    Mat->C = n;
+    Mat->M = k;
+
+    return Mat;
+}
+
+
+void iterer(struct vecteur *X, struct vecteur *Y, struct vecteur *W, struct matrice *Mat, float alpha) {
     struct vecteur *aX = multFloatProba(alpha, X);
 
     multVecMat(aX, Mat, Y);
 
-    proba gauche = invAlpha / (float) Mat->C;
+    proba gauche = (1 - alpha) / (float) Mat->C;
     proba droite = (alpha / (float) Mat->C) * multVectPVectI(X, f);
 
     initvec(W, gauche + droite, Mat->C);
     addVect(W, Y);
 }
 
-struct vecteur *puissances(struct matrice *Mat, struct vecteur *Pi) {
+struct vecteur *puissances(struct matrice *Mat, struct vecteur *Pi, float alpha) {
     int C = Mat->C;
-    printf("%d\n", C);
+    // printf("%d\n", C);
     if (!Pi) {
 
         Pi = alloueVecteur(C);
@@ -255,7 +300,7 @@ struct vecteur *puissances(struct matrice *Mat, struct vecteur *Pi) {
         cnt ++;
         metZero(y);
         metZero(w);
-        iterer(Pi, y, w, Mat);
+        iterer(Pi, y, w, Mat, alpha);
         delta = normeVect(Pi, y);
         recopie(Pi, y);
     }
@@ -292,45 +337,47 @@ FILE *initialiseGNU() {
 
 int main(int argc, char *argv[]) {
 
+    srand(time(NULL));
+    float alpha = 0.85;
+
     FILE *gnuplot = initialiseGNU();
     if (gnuplot) {
         
         int cnt = 0;
-        double pas = 30.;
-        char nom[] = "Matrices/StanfordBerkeley.txt";
+        double pas = 60.;
+        char nom[] = "Matrices/G1000.txt";
         struct matrice *Mat = lectureMatrice(nom);
 
         for (int i = 0; i < pas - 1; i++) {
 
             alpha = 0 + (i * (1 / pas));
-            invAlpha = 1 - alpha;
+            float invAlpha = 1 - alpha;
             long long moyenne_temps = 0;            
-            long moyenne = 1.;
+            long moyenne = 20.;
 
             for (int index = 0; index < moyenne; index++) {
 
                 cnt ++;
                 gettimeofday(&t1, NULL);
-                puissances(Mat, 0);
+                puissances(Mat, 0, alpha);
                 gettimeofday(&t2, NULL);
                 moyenne_temps += (t2.tv_sec - t1.tv_sec) * 1000000L + (t2.tv_usec - t1.tv_usec);
 
             }
 
             fprintf(gnuplot, "%f %f\n", alpha, (moyenne_temps / moyenne) / 1e6);
-            printf("%f, %f\n", alpha, (moyenne_temps/moyenne) / 1e6);     
+            // printf("%f, %f\n", alpha, (moyenne_temps/moyenne) / 1e6);     
         }
     }
 
-    fprintf(gnuplot, "e\n");
-    fprintf(gnuplot, "unset output\n");
+    // fprintf(gnuplot, "e\n");
+    // fprintf(gnuplot, "unset output\n");
 
     //    printf("\nitération 2\n");
     //    x = puissances("matriceCreuseV2.txt", x);
     //
     //    printf("\nitération 3\n");
     //    x = puissances("matriceCreuseV3.txt", x);
-
     // gettimeofday(&t1, NULL);
     // puissances("Matrices/StanfordBerkeley.txt", 0);
     // gettimeofday(&t2, NULL);

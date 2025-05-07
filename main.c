@@ -1,6 +1,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<math.h>
+#include<time.h>
 #include<sys/time.h> //struct timeval t1, t2; gettimeofday(&t1, NULL); gettimeofday(&t2, NULL); 
 
 typedef int indice;
@@ -351,7 +352,6 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < pas - 1; i++) {
 
             alpha = 0 + (i * (1 / pas));
-            float invAlpha = 1 - alpha;
             long long moyenne_temps = 0;            
             long moyenne = 20.;
 

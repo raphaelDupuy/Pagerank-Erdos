@@ -364,23 +364,17 @@ FILE *initialiseGNU(const char *nom) {
 
     if (nom == NULL) { nom = "plot"; }
     FILE *gnuplot = popen("gnuplot", "w");
-    printf("File is open\n");
     if (gnuplot) {
 
-        printf("Out there\n");
         fprintf(gnuplot, "reset\n");
-        printf("Done reseting\n");
         fprintf(gnuplot, "set terminal pngcairo size 1000,700 font 'Helvetica,12'\n");
 
-        printf("Ah the name\n");
         fprintf(gnuplot, "set output '%s.png'\n", nom);
-        printf("Maybe not\n");
         fprintf(gnuplot, "set lmargin 12\n");
         fprintf(gnuplot, "set rmargin 4\n");
         fprintf(gnuplot, "set bmargin 5\n");
         fprintf(gnuplot, "set tmargin 3\n");
 
-        printf("In here maybe\n");
         fprintf(gnuplot, "set xlabel 'alpha'\n");
         fprintf(gnuplot, "set ylabel 'Nombre etapes avant la convergence'\n");
         fprintf(gnuplot, "set title 'Nombre etapes avant la convergence en fonction de alpha'\n");
@@ -394,12 +388,9 @@ FILE *initialiseGNU(const char *nom) {
 struct vecteur **plot(struct matrice *Mat, struct vecteur **Pi_tab, char nom[]) {
 
     FILE *gnuplot = initialiseGNU(nom);
-    printf("here\n");
     int pas = 20;
-    printf("Starting Malloc\n");
     struct vecteur **vecteurs = malloc(pas * sizeof *vecteurs);
     if (vecteurs == NULL) { exit(501); }
-    printf("Malloc went right\n");
     if (gnuplot) {
         printf("Starting\n");
         for (int i = 0; i < pas - 1; i++) {
@@ -441,11 +432,8 @@ int main(int argc, char *argv[]) {
 
         char nom_png_Pi[64];
         snprintf(nom_png_Pi, sizeof nom_png_Pi, "plot_erdos_Pi_%03d", nb);
-        printf("Plot 1\n");
         plot(erdos, 0, nom_png_N);
-        printf("Plot 2\n");
         plot(erdos, vecteurs, nom_png_Pi);
     }
-
     return 0;
 }

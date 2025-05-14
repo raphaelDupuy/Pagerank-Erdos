@@ -2,6 +2,7 @@
 #include<stdlib.h>
 #include<math.h>
 #include<time.h>
+#include<string.h>
 #include<sys/time.h> //struct timeval t1, t2; gettimeofday(&t1, NULL); gettimeofday(&t2, NULL); 
 
 typedef int indice;
@@ -217,66 +218,90 @@ void recopie(struct vecteur *X, struct vecteur *Y) {
 
 
 struct matrice *genereErdosStochastique(const struct matrice *Mat0, indice n, proba p) {
+    
     indice C0 = Mat0->C;
     indice C  = C0 + n;             // nouvelle taille
     int M0    = Mat0->M;
     
-    // Estimation max: on recopie M0 + n*(C-1) arcs
-    int maxM = M0 + n * (C - 1);
-    struct elem *tmp = malloc(maxM * sizeof *tmp);
-    if (!tmp) { perror("malloc tmp"); exit(1); }
-
-    // Recopie des valeurs existantes
-    int k = 0;
-    for (int t = 0; t < M0; t++, k++) {
-        tmp[k] = Mat0->P[t];
+    // Compte pour chaque nouveau sommet i = C0 .. C-1 le nombre d'arcs
+    int *deg_out = calloc(n, sizeof *deg_out);
+    if (!deg_out) {
+        perror("calloc deg_out");
+        exit(EXIT_FAILURE);
     }
-
-    // Génération des arcs sortants pour les nouveaux sommets
-    int *deg_sortie = calloc(n, sizeof *deg_sortie);
-    if (!deg_sortie) { perror("calloc deg_sortie"); exit(1); }
-
-    for (indice i = C0; i < C; i++) {
-        int local_idx = i - C0;  // indice dans deg_sortie
+    for (int di = 0; di < n; di++) {
+        indice i = C0 + di;
+        int    cnt = 0;
         for (indice j = 0; j < C; j++) {
             if (j == i) continue;
-            double r = (double)rand() / RAND_MAX;
-            if (r < p) {
-                tmp[k].i   = i;
-                tmp[k].j   = j;
-                tmp[k].val = 1.0f;    // temporaire
-                deg_sortie[local_idx]++;
-                k++;
+            if ((double)rand() / RAND_MAX < p) {
+                cnt++;
             }
         }
+        deg_out[di] = cnt;
     }
 
-    // Normalisation des lignes des nouveaux sommets
-    for (indice i = C0; i < C; i++) {
-        int local_idx = i - C0;
-        if (deg_sortie[local_idx] > 0) {
-            for (int t = M0; t < k; t++) {
-                if (tmp[t].i == i) {
-                    tmp[t].val = 1.0f / deg_sortie[local_idx];
+    // Calcule pour chaque di de la taille effective et l'offset dans P
+    //    taille[di] = deg_out[di] > 0 ? deg_out[di] : C
+    int *taille   = malloc(n * sizeof *taille);
+    int *offset   = malloc(n * sizeof *offset);
+    if (!taille || !offset) {
+        perror("malloc taille/offset");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int di = 0; di < n; di++) {
+        taille[di] = (deg_out[di] > 0 ? deg_out[di] : C);
+    }
+    offset[0] = M0;
+    for (int di = 1; di < n; di++) {
+        offset[di] = offset[di - 1] + taille[di - 1];
+    }
+    int M_new = offset[n - 1] + taille[n - 1];  // nombre total d'éléments
+
+    struct elem *P = malloc(M_new * sizeof *P);
+    if (!P) {
+        perror("malloc P");
+        exit(EXIT_FAILURE);
+    }
+    struct matrice *Mat = malloc(sizeof *Mat);
+    if (!Mat) {
+        perror("malloc Mat");
+        exit(EXIT_FAILURE);
+    }
+    Mat->C = C;
+    Mat->M = M_new;
+    Mat->P = P;
+
+    printf("Copie de la matrice initiale\n");
+    memcpy(P, Mat0->P, M0 * sizeof *P);
+
+    printf("Remplissage des offset\n");
+    // Remplir les blocs pour chaque nouveau sommet
+    for (int di = 0; di < n; di++) {
+        indice i     = C0 + di;
+        int    start = offset[di];
+        int    written = 0;
+        if (deg_out[di] > 0) {
+            // val stochastique = 1/deg_out[di]
+            proba v = 1.0f / deg_out[di];
+            for (indice j = 0; j < C; j++) {
+                if (j == i) continue;
+                if ((double)rand() / RAND_MAX < p) {
+                    P[start + written].i   = i;
+                    P[start + written].j   = j;
+                    P[start + written].val = v;
+                    written++;
                 }
             }
         }
     }
 
-    free(deg_sortie);
+    free(deg_out);
+    free(taille);
+    free(offset);
 
-    struct matrice *Mat = malloc(sizeof *Mat);
-    if (!Mat) { perror("malloc Mat"); exit(1); }
-    Mat->C = C;
-    Mat->M = k;
-    Mat->P = malloc(k * sizeof *Mat->P);
-    if (!Mat->P) { perror("malloc Mat->P"); exit(1); }
-    for (int t = 0; t < k; t++) {
-        Mat->P[t] = tmp[t];
-    }
-    free(tmp);
-
-    printf("Matrice générée : taille %d, éléments non nuls %d\n", C, k);
+    printf("généré Erdos-Rényi stochastique : C=%d, M=%d\n", Mat->C, Mat->M);
     return Mat;
 }
 
@@ -377,7 +402,7 @@ FILE *initialiseGNU(char nom[]) {
 struct vecteur **plot(struct matrice *Mat, struct vecteur **Pi_tab, char nom[]) {
 
     FILE *gnuplot = initialiseGNU(nom);
-    double pas = 60.;
+    double pas = 20.;
     struct vecteur **vecteurs = malloc(pas * sizeof(struct vecteur *));
     if (vecteurs == NULL) { exit(501); }
 
@@ -393,7 +418,7 @@ struct vecteur **plot(struct matrice *Mat, struct vecteur **Pi_tab, char nom[]) 
             vecteurs[i] = res->V;
 
             fprintf(gnuplot, "%f %lld\n", alpha, moyenne_iter);
-            // printf("%f, %lld\n", alpha, moyenne_iter);
+            printf("%f, %lld\n", alpha, moyenne_iter);
         }
     printf("Done\n");
     }
@@ -402,13 +427,13 @@ struct vecteur **plot(struct matrice *Mat, struct vecteur **Pi_tab, char nom[]) 
 
 int main(int argc, char *argv[]) {
 
-    char nom[] = "Matrices/matriceCreuseFormat.txt";
+    char nom[] = "Matrices/StanfordBerkeley.txt";
 
     struct matrice *Mat = lectureMatrice(nom);
 
     struct vecteur **vecteurs = plot(Mat, 0, "plot_depart");
-    struct matrice *erdos = genereErdosStochastique(Mat, 5, 0.05);
-    plot(erdos, 0, "plot_erdos_N");
+    struct matrice *erdos = genereErdosStochastique(Mat, 600, 0.8);
+    //plot(erdos, 0, "plot_erdos_N");
     //affichemat(erdos);
     plot(erdos, vecteurs, "plot_erdos_pi");
     return 0;

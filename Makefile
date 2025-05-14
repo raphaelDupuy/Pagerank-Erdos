@@ -6,5 +6,5 @@ Main: main.c
 
 clean:
 	rm -f Main
-	rm -f plot.png
+	rm -f *.png
 	ls -l

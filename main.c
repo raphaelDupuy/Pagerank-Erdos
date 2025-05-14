@@ -23,6 +23,11 @@ struct vecteur {
     indice C;
 };
 
+struct resultat_puissances {  // Sortie de la fonction Puissances
+    struct vecteur *V;        // Vecteur de proba stationnaire
+    int n;                    // Nombre d'étapes avant la convergence
+};
+
 struct timeval t1, t2;
 
 int *f; // Vecteur ligne de taille N tel que f[i] = 1 si la ligne i de P ne contient que des zéros et sinon f[i] = 0
@@ -63,45 +68,67 @@ void affichemat(struct matrice *Mat) {
     }
 }
 
-struct matrice *lectureMatrice(char *nom_fic) {
-    printf("Lecture Matrice\n");
-    indice i, j;
-    int nb, C, M;
-    struct matrice *Mat = malloc(sizeof(struct matrice));
-    struct elem *P;
+struct matrice *lectureMatrice(const char *nom_fic) {
+    indice i, j, nb;
+    int C, M;
     double v;
-    FILE *F;
-    F = fopen(nom_fic, "r");
-    if (F == NULL) { exit(100); }
-    printf("Lecture header\n");
-    fscanf(F, "%d", &(C));
-    fscanf(F, "%d", &(M));
-    printf("Lecture header done: %d, %d\n", C, M);
-    P = malloc(M * sizeof(struct elem));
-    if (P == NULL) { exit(10); };
+    FILE *F = fopen(nom_fic, "r");
+    if (!F) {
+        perror("ouverture fichier");
+        exit(100);
+    }
 
-    indice courant = 0;
-    printf("Lecture matrice\n");
-    for (int k = 0; k < C; k++) {
-        fscanf(F, "%d", &(i));
-        fscanf(F,"%d",  &(nb)); 
+    if (fscanf(F, "%d %d", &C, &M) != 2) {
+        fprintf(stderr, "Format de header invalide\n");
+        exit(101);
+    }
+    printf("Lecture header done: C = %d, M = %d\n", C, M);
+
+    struct elem *P = malloc(M * sizeof *P);
+    if (!P) {
+        perror("malloc P");
+        exit(102);
+    }
+
+    //Boucle de lecture jusqu'à avoir M éléments ou EOF
+    int courant = 0;
+    while (courant < M && fscanf(F, "%d %d", &i, &nb) == 2) {
+        if (i < 1 || i > C) {
+            fprintf(stderr, "Index de ligne hors bornes: %d\n", i);
+            exit(103);
+        }
+
+        // Lecture des 'nb' paires (j, v)
         for (int z = 0; z < nb; z++) {
-            fscanf(F, "%d", &(j));
-            fscanf(F, "%le", &(v));
-            struct elem e;
-            e.i = i - 1;
-            e.j = j - 1;
-            e.val = v;
-            P[courant] = e;
-            courant++;
-            if (courant > M) {
-                exit(202);
+            if (fscanf(F, "%d %lf", &j, &v) != 2) {
+                fprintf(stderr, "Erreur de format à la ligne %d, voisin %d\n", i, z);
+                exit(104);
             }
+            if (courant >= M) {
+                fprintf(stderr, "Trop d'éléments lus (>%d)\n", M);
+                exit(105);
+            }
+            P[courant].i   = i - 1;
+            P[courant].j   = j - 1;
+            P[courant].val = (proba)v;
+            courant++;
         }
     }
-    printf("Nombre d'elements attendu: %d, nombre réel: %d\n", M, courant);
     fclose(F);
 
+    // Vérification
+    if (courant != M) {
+        fprintf(stderr,
+          "Nombre d'éléments lus (%d) != M attendu (%d)\n", courant, M);
+        exit(106);
+    }
+    printf("Lecture matrice terminée, %d éléments lus\n", courant);
+
+    struct matrice *Mat = malloc(sizeof *Mat);
+    if (!Mat) {
+        perror("malloc Mat");
+        exit(107);
+    }
     Mat->C = C;
     Mat->M = M;
     Mat->P = P;
@@ -188,60 +215,71 @@ void recopie(struct vecteur *X, struct vecteur *Y) {
     }
 }
 
-struct matrice *genereErdosStochastique(indice n, proba p) {
 
-    struct elem *tmp = malloc(n * n * sizeof(struct elem));
-    if (!tmp) exit(500);
+struct matrice *genereErdosStochastique(const struct matrice *Mat0, indice n, proba p) {
+    indice C0 = Mat0->C;
+    indice C  = C0 + n;             // nouvelle taille
+    int M0    = Mat0->M;
+    
+    // Estimation max: on recopie M0 + n*(C-1) arcs
+    int maxM = M0 + n * (C - 1);
+    struct elem *tmp = malloc(maxM * sizeof *tmp);
+    if (!tmp) { perror("malloc tmp"); exit(1); }
 
+    // Recopie des valeurs existantes
     int k = 0;
-    int *degree_sortie = calloc(n, sizeof(int));
-    if (!degree_sortie) exit(501);
+    for (int t = 0; t < M0; t++, k++) {
+        tmp[k] = Mat0->P[t];
+    }
 
-    for (indice i = 0; i < n; i++) {
-        for (indice j = 0; j < n; j++) {
-            if (i != j && ((double)rand() / RAND_MAX) < p) {
-                tmp[k].i = i;
-                tmp[k].j = j;
-                tmp[k].val = 1.0; // temporaire
-                degree_sortie[i]++;
+    // Génération des arcs sortants pour les nouveaux sommets
+    int *deg_sortie = calloc(n, sizeof *deg_sortie);
+    if (!deg_sortie) { perror("calloc deg_sortie"); exit(1); }
+
+    for (indice i = C0; i < C; i++) {
+        int local_idx = i - C0;  // indice dans deg_sortie
+        for (indice j = 0; j < C; j++) {
+            if (j == i) continue;
+            double r = (double)rand() / RAND_MAX;
+            if (r < p) {
+                tmp[k].i   = i;
+                tmp[k].j   = j;
+                tmp[k].val = 1.0f;    // temporaire
+                deg_sortie[local_idx]++;
                 k++;
             }
         }
     }
 
-    for (indice i = 0; i < n; i++) {
-        if (degree_sortie[i] == 0) {
-            // ligne vide -> ligne uniforme
-            for (indice j = 0; j < n; j++) {
-                tmp[k].i = i;
-                tmp[k].j = j;
-                tmp[k].val = 1.0 / n;
-                k++;
-            }
-        } else {
-            // normalise lignes non nulles
-            for (int m = 0; m < k; m++) {
-                if (tmp[m].i == i) {
-                    tmp[m].val = 1.0 / degree_sortie[i];
+    // Normalisation des lignes des nouveaux sommets
+    for (indice i = C0; i < C; i++) {
+        int local_idx = i - C0;
+        if (deg_sortie[local_idx] > 0) {
+            for (int t = M0; t < k; t++) {
+                if (tmp[t].i == i) {
+                    tmp[t].val = 1.0f / deg_sortie[local_idx];
                 }
             }
         }
     }
 
-    free(degree_sortie);
+    free(deg_sortie);
 
-    struct matrice *Mat = malloc(sizeof(struct matrice));
-    Mat->P = malloc(k * sizeof(struct elem));
-    if (!Mat->P) exit(502);
-    for (int m = 0; m < k; m++) {
-        Mat->P[m] = tmp[m];
+    struct matrice *Mat = malloc(sizeof *Mat);
+    if (!Mat) { perror("malloc Mat"); exit(1); }
+    Mat->C = C;
+    Mat->M = k;
+    Mat->P = malloc(k * sizeof *Mat->P);
+    if (!Mat->P) { perror("malloc Mat->P"); exit(1); }
+    for (int t = 0; t < k; t++) {
+        Mat->P[t] = tmp[t];
     }
     free(tmp);
-    Mat->C = n;
-    Mat->M = k;
 
+    printf("Matrice générée : taille %d, éléments non nuls %d\n", C, k);
     return Mat;
 }
+
 
 
 void iterer(struct vecteur *X, struct vecteur *Y, struct vecteur *W, struct matrice *Mat, float alpha) {
@@ -256,16 +294,13 @@ void iterer(struct vecteur *X, struct vecteur *Y, struct vecteur *W, struct matr
     addVect(W, Y);
 }
 
-struct vecteur *puissances(struct matrice *Mat, struct vecteur *Pi, float alpha) {
+struct resultat_puissances *puissances(struct matrice *Mat, struct vecteur *Pi, float alpha) {
     int C = Mat->C;
-    // printf("%d\n", C);
     if (!Pi) {
-
         Pi = alloueVecteur(C);
         initvec(Pi, 1/(double) C, C);  // x0 = (1/N)e
-
     } else {  // adapter en fonction du nombre de nouveaux elements
-        if (C != Pi->C) { exit(320); }
+        if (C < Pi->C) { printf("%d > %d\n", Pi->C, C); exit(64); }
         struct vecteur *Z = alloueVecteur(C);
 
         for (indice i = 0; i < C; i++) {
@@ -275,7 +310,6 @@ struct vecteur *puissances(struct matrice *Mat, struct vecteur *Pi, float alpha)
                 Z->v[i] = 0.0;
             }
         }
-        printf("Vecteur fourni: \n");
 
         free(Pi->v);
         free(Pi);
@@ -308,17 +342,21 @@ struct vecteur *puissances(struct matrice *Mat, struct vecteur *Pi, float alpha)
 
     free(f);
     free(y);
-    return Pi;
+    struct resultat_puissances *res = malloc(sizeof(int) + sizeof(struct vecteur));
+    res->V = Pi;
+    res->n = cnt;
+    return res;
 }
 
-FILE *initialiseGNU() {
+FILE *initialiseGNU(char nom[]) {
 
+    if (!nom) { nom = "plot"; }
     FILE *gnuplot = popen("gnuplot", "w");
     if (gnuplot) {
 
         fprintf(gnuplot, "reset\n");    
         fprintf(gnuplot, "set terminal pngcairo size 1000,700 font 'Helvetica,12'\n");
-        fprintf(gnuplot, "set output 'plot.png'\n");
+        fprintf(gnuplot, "set output '%s.png'\n", nom);
 
         fprintf(gnuplot, "set lmargin 12\n");
         fprintf(gnuplot, "set rmargin 4\n");
@@ -326,8 +364,8 @@ FILE *initialiseGNU() {
         fprintf(gnuplot, "set tmargin 3\n");
 
         fprintf(gnuplot, "set xlabel 'alpha'\n");
-        fprintf(gnuplot, "set ylabel 'Temps (secondes)'\n");
-        fprintf(gnuplot, "set title 'Temps de convergence en fonction de alpha'\n");
+        fprintf(gnuplot, "set ylabel 'Nombre etapes avant la convergence'\n");
+        fprintf(gnuplot, "set title 'Nombre etapes avant la convergence en fonction de alpha'\n");
         fprintf(gnuplot, "set grid\n");
 
         fprintf(gnuplot, "plot '-' with linespoints title 'Convergence'\n");
@@ -336,52 +374,42 @@ FILE *initialiseGNU() {
     } else { return 0; }
 }
 
+struct vecteur **plot(struct matrice *Mat, struct vecteur **Pi_tab, char nom[]) {
+
+    FILE *gnuplot = initialiseGNU(nom);
+    double pas = 60.;
+    struct vecteur **vecteurs = malloc(pas * sizeof(struct vecteur *));
+    if (vecteurs == NULL) { exit(501); }
+
+    if (gnuplot) {
+        printf("Starting\n");
+        for (int i = 0; i < pas - 1; i++) {
+            float alpha = 0 + (i * (1 / pas));
+            long long moyenne_iter = 0;
+
+            struct vecteur *init = (Pi_tab != NULL) ? Pi_tab[i] : NULL;
+            struct resultat_puissances *res = puissances(Mat, init, alpha);
+            moyenne_iter += res->n;
+            vecteurs[i] = res->V;
+
+            fprintf(gnuplot, "%f %lld\n", alpha, moyenne_iter);
+            // printf("%f, %lld\n", alpha, moyenne_iter);
+        }
+    printf("Done\n");
+    }
+    return vecteurs;
+}
+
 int main(int argc, char *argv[]) {
 
-    srand(time(NULL));
-    float alpha = 0.85;
+    char nom[] = "Matrices/matriceCreuseFormat.txt";
 
-    FILE *gnuplot = initialiseGNU();
-    if (gnuplot) {
-        
-        int cnt = 0;
-        double pas = 60.;
-        char nom[] = "Matrices/G1000.txt";
-        struct matrice *Mat = lectureMatrice(nom);
+    struct matrice *Mat = lectureMatrice(nom);
 
-        for (int i = 0; i < pas - 1; i++) {
-
-            alpha = 0 + (i * (1 / pas));
-            long long moyenne_temps = 0;            
-            long moyenne = 20.;
-
-            for (int index = 0; index < moyenne; index++) {
-
-                cnt ++;
-                gettimeofday(&t1, NULL);
-                puissances(Mat, 0, alpha);
-                gettimeofday(&t2, NULL);
-                moyenne_temps += (t2.tv_sec - t1.tv_sec) * 1000000L + (t2.tv_usec - t1.tv_usec);
-
-            }
-
-            fprintf(gnuplot, "%f %f\n", alpha, (moyenne_temps / moyenne) / 1e6);
-            // printf("%f, %f\n", alpha, (moyenne_temps/moyenne) / 1e6);     
-        }
-    }
-
-    // fprintf(gnuplot, "e\n");
-    // fprintf(gnuplot, "unset output\n");
-
-    //    printf("\nitération 2\n");
-    //    x = puissances("matriceCreuseV2.txt", x);
-    //
-    //    printf("\nitération 3\n");
-    //    x = puissances("matriceCreuseV3.txt", x);
-    // gettimeofday(&t1, NULL);
-    // puissances("Matrices/StanfordBerkeley.txt", 0);
-    // gettimeofday(&t2, NULL);
-    // long temps_micro = (t2.tv_sec - t1.tv_sec) * 1000000L + (t2.tv_usec - t1.tv_usec);
-    // printf("Converge en %ld micro sec\n", temps_micro);
+    struct vecteur **vecteurs = plot(Mat, 0, "plot_depart");
+    struct matrice *erdos = genereErdosStochastique(Mat, 5, 0.05);
+    plot(erdos, 0, "plot_erdos_N");
+    //affichemat(erdos);
+    plot(erdos, vecteurs, "plot_erdos_pi");
     return 0;
 }

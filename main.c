@@ -3,25 +3,8 @@
 #include<math.h>
 #include<time.h>
 #include<string.h>
-
-typedef int indice;
-typedef float proba;
-
-struct elem {
-    indice i, j; // Les indexes
-    proba val;   // La valeur
-};
-
-struct matrice {    // Matrice carrée
-    struct elem *P; // Ensemble des (i, j, val)
-    indice C;       // Nombre de colonnes (et lignes, matrice carrée)
-    int M;          // Nombre d'elements non nuls (de *P)
-};
-
-struct vecteur {
-    proba *v;
-    indice C;
-};
+#include "calcul.c"
+#include "affichage.c"
 
 struct resultat_puissances {  // Sortie de la fonction Puissances
     struct vecteur *V;        // Vecteur de proba stationnaire
@@ -31,13 +14,6 @@ struct resultat_puissances {  // Sortie de la fonction Puissances
 struct timeval t1, t2;
 
 int *f; // Vecteur ligne de taille N tel que f[i] = 1 si la ligne i de P ne contient que des zéros et sinon f[i] = 0
-
-struct vecteur *alloueVecteur(int taille) {
-    struct vecteur *Z = malloc(sizeof(struct vecteur)); if(!Z) { exit(420); }
-    Z->C = taille;; if (!Z->C) { exit(422); }
-    Z->v = malloc(taille * sizeof(proba)); if (!Z->v) { exit(421); }
-    return Z;
-}
 
 void initvec(struct vecteur *Vec, float val, int taille) {
     indice i; for (i = 0; i < taille; i++) { Vec->v[i] = val; }
@@ -132,10 +108,13 @@ void recopie(struct vecteur *X, struct vecteur *Y) {
     }
 }
 
-struct matrice *genereErdosStochastique(const struct matrice *Mat0, indice n, proba p){
+// Mat0 -> Matrice à partir de laquelle on génère une nouvelle
+// n    -> Proportion de noeuds à rajouter (%)
+// p    -> Proba d'avoir un arc entre un nouveau noeud et un ancien
+struct matrice *genereErdosStochastique(const struct matrice *Mat0, double n, proba p){
     indice C0 = Mat0->C;
-    indice C  = C0 + n;
-    int     M0 = Mat0->M;
+    indice C  = C0 + (C0 * (n/100));
+    int M0 = Mat0->M;
 
     // on recopie M0 + n * C arcs au plus
     int maxM = M0 + n * C;
@@ -308,18 +287,18 @@ int main(int argc, char *argv[]) {
 
     struct vecteur **vecteurs = plot(Mat, 0, "plot_depart");
     struct matrice *erdos = genereErdosStochastique(Mat, 2, 1);
-
-    for (int nb = 1; nb < 1000; nb += 50) {
-        printf("%d\n", nb);
-        struct matrice *erdos = genereErdosStochastique(Mat, nb, 0.2);
-
-        char nom_png_N[64];
-        snprintf(nom_png_N, sizeof nom_png_N, "plot_erdos_N_%03d", nb);
-
-        char nom_png_Pi[64];
-        snprintf(nom_png_Pi, sizeof nom_png_Pi, "plot_erdos_Pi_%03d", nb);
-        plot(erdos, 0, nom_png_N);
-        plot(erdos, vecteurs, nom_png_Pi);
-    }
+    plot(erdos, vecteurs, "tst");   
+    //for (int nb = 1; nb < 1000; nb += 50) {
+    //    printf("%d\n", nb);
+    //    struct matrice *erdos = genereErdosStochastique(Mat, nb, 0.2);
+//
+    //    char nom_png_N[64];
+    //    snprintf(nom_png_N, sizeof nom_png_N, "plot_erdos_N_%03d", nb);
+//
+    //    char nom_png_Pi[64];
+    //    snprintf(nom_png_Pi, sizeof nom_png_Pi, "plot_erdos_Pi_%03d", nb);
+    //    plot(erdos, 0, nom_png_N);
+    //    plot(erdos, vecteurs, nom_png_Pi);
+    //}
     return 0;
 }

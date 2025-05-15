@@ -1,4 +1,4 @@
-#include<main.c>
+#include"calcul.h"
 
 // Multiplie un vecteur de proba par un float
 struct vecteur *multFloatProba(float a, struct vecteur *Vec) {
@@ -69,4 +69,11 @@ void metZero(struct vecteur *Vec) {
     for (i = 0; i < Vec->C; i++) {
         Vec->v[i] = 0.0;
     }
+}
+
+struct vecteur *alloueVecteur(int taille) {
+    struct vecteur *Z = malloc(sizeof(struct vecteur)); if(!Z) { exit(420); }
+    Z->C = taille;; if (!Z->C) { exit(422); }
+    Z->v = malloc(taille * sizeof(proba)); if (!Z->v) { exit(421); }
+    return Z;
 }

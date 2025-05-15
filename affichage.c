@@ -1,5 +1,5 @@
 #include<stdio.h>
-#include<main.c>
+#include"calcul.h"
 
 void affichemat(struct matrice *Mat) {
     indice k; for (k = 0; k < Mat->M; k++) {{printf("%d %d %f\n", Mat->P[k].i, Mat->P[k].j, Mat->P[k].val);}

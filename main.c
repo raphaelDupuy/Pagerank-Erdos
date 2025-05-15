@@ -3,7 +3,6 @@
 #include<math.h>
 #include<time.h>
 #include<string.h>
-#include<sys/time.h> //struct timeval t1, t2; gettimeofday(&t1, NULL); gettimeofday(&t2, NULL); 
 
 typedef int indice;
 typedef float proba;
@@ -54,18 +53,6 @@ void calculeF(int *f, struct matrice *Mat) {
         if (f[ligne]){
             f[ligne] = 0;
         }
-    }
-}
-
-void affichevec(struct vecteur *Vec) {
-    printf("Affichage vecteur\n");
-    if (!Vec || !Vec->v) { exit(6); }
-    indice i; for (i = 0; i < Vec->C; i++) {printf("%f ", Vec->v[i]);}
-    printf("\n");
-}
-
-void affichemat(struct matrice *Mat) {
-    indice k; for (k = 0; k < Mat->M; k++) {{printf("%d %d %f\n", Mat->P[k].i, Mat->P[k].j, Mat->P[k].val);}
     }
 }
 
@@ -136,77 +123,6 @@ struct matrice *lectureMatrice(const char *nom_fic) {
     return Mat;
 }
 
-proba *diffVect(struct vecteur *X, struct vecteur *Y) {
-    indice k;
-    int C = X->C;
-    if (C != Y->C) { exit(320); }
-    proba *Z = malloc(C * sizeof(proba));
-    for (k = 0; k < C; k++) {
-        Z[k] = X->v[k] - Y->v[k];
-    }
-    return Z;
-}
-
-float normeVect(struct vecteur *X, struct vecteur *Y) {
-    indice k;
-    int C = X->C;
-    if (C != Y->C) { exit(320); }
-
-    proba* delta = diffVect(X, Y);
-    float norme = 0;
-    for (k = 0; k < C; k++) {
-        norme += fabs(delta[k]);
-    }
-    free(delta);
-    return norme;
-}
-
-// Addition entre deux vecteurs de proba (ajoute dans y)
-void addVect(struct vecteur *X, struct vecteur *Y) {
-    int C = X->C;
-    if (C != Y->C) { exit(320); }
-    indice i; for (i = 0; i < C; i++) {Y->v[i] += X->v[i];}
-}
-
-// Multiplie un vecteur de proba par un float
-struct vecteur *multFloatProba(float a, struct vecteur *Vec) {
-    int taille = (int) Vec->C;
-    struct vecteur *res = alloueVecteur(taille);
-    for (indice i = 0; i < taille; i++) {
-        res->v[i] = a * Vec->v[i];
-    }
-    return res;
-}
-
-// Multiplie un vecteur de proba (horizontal) avec un vecteur de int (vertical)
-float multVectPVectI(struct vecteur *Vec, int *f) {
-    indice i;
-    float res = 0.;
-    for (i = 0; i < Vec->C; i++) {
-        res += Vec->v[i] * f[i];
-    }
-    return res;
-}
-
-// Multiplie à gauche une matrice par un vecteur
-void multVecMat(struct vecteur *X, struct matrice *Mat, struct vecteur *Y) {
-    indice i, j, k;
-    if ((X->C != Y->C) ||(Y->C != Mat->C)) { exit(321); }
-    for (k = 0; k < Mat->M; k++) {
-        i = Mat->P[k].i;
-        j = Mat->P[k].j;
-        float val = Mat->P[k].val;
-        Y->v[j] += X->v[i] * val;
-    }
-}
-
-void metZero(struct vecteur *Vec) {
-    indice i;
-    for (i = 0; i < Vec->C; i++) {
-        Vec->v[i] = 0.0;
-    }
-}
-
 void recopie(struct vecteur *X, struct vecteur *Y) {
     indice i;
     int C = X->C;
@@ -234,9 +150,9 @@ struct matrice *genereErdosStochastique(const struct matrice *Mat0, indice n, pr
     int k = M0;
 
     // Buffer temporaire pour stocker les voisins d’un nouveau sommet
-    indice *neighbors = malloc(C * sizeof *neighbors);
-    if (!neighbors) {
-        perror("malloc neighbors");
+    indice *voisins = malloc(C * sizeof *voisins);
+    if (!voisins) {
+        perror("malloc voisins");
         exit(EXIT_FAILURE);
     }
 
@@ -245,17 +161,17 @@ struct matrice *genereErdosStochastique(const struct matrice *Mat0, indice n, pr
         int deg = 0;
 
         // Collecte des voisins selon probabilité p
-        for (indice j = 0; j < C; j++) {
+        for (indice j = 0; j < C0; j++) {
             if (j == i) continue;
             if ((double)rand() / RAND_MAX < p) {
-                neighbors[deg++] = j;
+                voisins[deg++] = j;
             }
         }
 
         if (deg == 0) {
-            for (indice j = 0; j < C; j++) {
+            for (indice j = 0; j < C0; j++) {
                 if (j == i) continue;
-                neighbors[deg++] = j;
+                voisins[deg++] = j;
             }
         }
 
@@ -263,13 +179,13 @@ struct matrice *genereErdosStochastique(const struct matrice *Mat0, indice n, pr
         proba v = 1.0f / deg;
         for (int t = 0; t < deg; t++) {
             tmp[k].i   = i;
-            tmp[k].j   = neighbors[t];
+            tmp[k].j   = voisins[t];
             tmp[k].val = v;
             k++;
         }
     }
 
-    free(neighbors);
+    free(voisins);
 
     // Construction de la matrice finale de taille k
     struct matrice *Mat = malloc(sizeof *Mat);
@@ -290,8 +206,6 @@ struct matrice *genereErdosStochastique(const struct matrice *Mat0, indice n, pr
     printf("généré Erdos-Rényi stochastique : C=%d, M=%d\n", Mat->C, Mat->M);
     return Mat;
 }
-
-
 
 void iterer(struct vecteur *X, struct vecteur *Y, struct vecteur *W, struct matrice *Mat, float alpha) {
     struct vecteur *aX = multFloatProba(alpha, X);
@@ -360,31 +274,6 @@ struct resultat_puissances *puissances(struct matrice *Mat, struct vecteur *Pi, 
     return res;
 }
 
-FILE *initialiseGNU(const char *nom) {
-
-    if (nom == NULL) { nom = "plot"; }
-    FILE *gnuplot = popen("gnuplot", "w");
-    if (gnuplot) {
-
-        fprintf(gnuplot, "reset\n");
-        fprintf(gnuplot, "set terminal pngcairo size 1000,700 font 'Helvetica,12'\n");
-
-        fprintf(gnuplot, "set output '%s.png'\n", nom);
-        fprintf(gnuplot, "set lmargin 12\n");
-        fprintf(gnuplot, "set rmargin 4\n");
-        fprintf(gnuplot, "set bmargin 5\n");
-        fprintf(gnuplot, "set tmargin 3\n");
-
-        fprintf(gnuplot, "set xlabel 'alpha'\n");
-        fprintf(gnuplot, "set ylabel 'Nombre etapes avant la convergence'\n");
-        fprintf(gnuplot, "set title 'Nombre etapes avant la convergence en fonction de alpha'\n");
-        fprintf(gnuplot, "set grid\n");
-
-        fprintf(gnuplot, "plot '-' with linespoints title 'Convergence'\n");
-        return gnuplot;
-    } else { return 0; }
-}
-
 struct vecteur **plot(struct matrice *Mat, struct vecteur **Pi_tab, char nom[]) {
 
     FILE *gnuplot = initialiseGNU(nom);
@@ -394,7 +283,7 @@ struct vecteur **plot(struct matrice *Mat, struct vecteur **Pi_tab, char nom[]) 
     if (gnuplot) {
         printf("Starting\n");
         for (int i = 0; i < pas - 1; i++) {
-            float alpha = 0 + (i * (1 / pas));
+            float alpha = 0 + (i * (1 / (double) pas));
             long long moyenne_iter = 0;
 
             struct vecteur *init = (Pi_tab != NULL) ? Pi_tab[i] : NULL;
@@ -413,19 +302,16 @@ struct vecteur **plot(struct matrice *Mat, struct vecteur **Pi_tab, char nom[]) 
 
 int main(int argc, char *argv[]) {
 
-    char nom[] = "Matrices/G1000.txt";
+    char nom[] = "Matrices/StanfordBerkeley.txt";
 
     struct matrice *Mat = lectureMatrice(nom);
 
     struct vecteur **vecteurs = plot(Mat, 0, "plot_depart");
-    struct matrice *erdos = genereErdosStochastique(Mat, 10, 0.1);
+    struct matrice *erdos = genereErdosStochastique(Mat, 2, 1);
 
-    struct matrice *erdos2 = genereErdosStochastique(Mat, 100, 0.1);
-
-    for (int nb = 1; nb < 100; nb += 5) {
+    for (int nb = 1; nb < 1000; nb += 50) {
         printf("%d\n", nb);
-        struct matrice *erdos = genereErdosStochastique(Mat, nb, 0.1);
-
+        struct matrice *erdos = genereErdosStochastique(Mat, nb, 0.2);
 
         char nom_png_N[64];
         snprintf(nom_png_N, sizeof nom_png_N, "plot_erdos_N_%03d", nb);
